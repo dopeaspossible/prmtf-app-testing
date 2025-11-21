@@ -13,12 +13,15 @@ This guide will help you deploy your CaseCraft AI app to GitHub Pages.
    - **Deploy from a branch**: `gh-pages` branch, `/ (root)` folder
    - OR **GitHub Actions** (recommended - we'll use this)
 
-### 2. Add Your API Key as a Secret
+### 2. Add Your API Key as a Secret (Optional)
 
+**Note:** The API key is only needed if you plan to use AI pattern generation features. The app works fine without it for uploading and editing your own images/PDFs.
+
+If you want to add it (optional):
 1. In your repository, go to **Settings** → **Secrets and variables** → **Actions**
 2. Click **New repository secret**
 3. Name: `VITE_API_KEY`
-4. Value: Your Google Gemini API key
+4. Value: Your Google Gemini API key (get it from https://makersuite.google.com/app/apikey)
 5. Click **Add secret**
 
 ### 3. Enable GitHub Actions
