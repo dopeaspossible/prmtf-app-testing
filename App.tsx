@@ -105,7 +105,7 @@ const App: React.FC = () => {
     e.preventDefault();
     const password = passwordInputRef.current?.value;
     
-    if (password === "admin") {
+    if (password === "Roznavska1992") {
         setIsAdmin(true);
         setIsLoginModalOpen(false);
         setViewMode(ViewMode.TEMPLATES); // Go straight to templates management
@@ -670,9 +670,6 @@ const App: React.FC = () => {
                     >
                         Prihlásiť
                     </button>
-                </div>
-                <div className="mt-4 text-center">
-                    <p className="text-xs text-slate-400">Heslo je: <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-500 font-bold">admin</code></p>
                 </div>
             </form>
         </div>
