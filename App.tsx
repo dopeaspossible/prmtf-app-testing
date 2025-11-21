@@ -324,7 +324,7 @@ const App: React.FC = () => {
   };
 
   const handleAutoFill = () => {
-    if (!design.imageSrc || !design.imgWidth || !design.imgHeight) return;
+    if (!design.imageSrc || !design.imgWidth || !design.imgHeight || !selectedModel) return;
     
     const scaleX = selectedModel.width / design.imgWidth;
     const scaleY = selectedModel.height / design.imgHeight;
