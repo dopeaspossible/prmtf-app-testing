@@ -143,6 +143,93 @@ const App: React.FC = () => {
     }
   };
 
+  const handleExportOrders = () => {
+    const dataStr = JSON.stringify(orders, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `casecraft-orders-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportOrders = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const imported = JSON.parse(event.target?.result as string);
+          if (Array.isArray(imported)) {
+            if (window.confirm(`Naozaj chcete importovať ${imported.length} objednávok? Toto prepíše všetky existujúce objednávky.`)) {
+              setOrders(imported);
+              alert(`Úspešne importované ${imported.length} objednávok.`);
+            }
+          } else {
+            alert("Neplatný formát súboru. Očakáva sa pole objednávok.");
+          }
+        } catch (error) {
+          alert("Chyba pri načítaní súboru. Skontrolujte, či je súbor platný JSON.");
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
+  const handleExportTemplates = () => {
+    const dataStr = JSON.stringify(availableModels, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `casecraft-templates-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportTemplates = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const imported = JSON.parse(event.target?.result as string);
+          if (Array.isArray(imported)) {
+            if (window.confirm(`Naozaj chcete importovať ${imported.length} šablón? Toto prepíše všetky existujúce šablóny.`)) {
+              setAvailableModels(imported);
+              if (imported.length > 0) {
+                setSelectedModel(imported[0]);
+              }
+              alert(`Úspešne importované ${imported.length} šablón.`);
+            }
+          } else {
+            alert("Neplatný formát súboru. Očakáva sa pole šablón.");
+          }
+        } catch (error) {
+          alert("Chyba pri načítaní súboru. Skontrolujte, či je súbor platný JSON.");
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
 
   // --- EDITOR HANDLERS ---
 
@@ -708,13 +795,29 @@ const App: React.FC = () => {
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
            <div className="flex justify-between items-center mb-6">
              <h2 className="text-2xl font-bold text-slate-900">Správa Šablón</h2>
-             <button 
-               onClick={triggerTemplateUpload}
-               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-             >
-               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-               Pridať šablónu
-             </button>
+             <div className="flex gap-2">
+               <button 
+                 onClick={triggerTemplateUpload}
+                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+               >
+                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                 Pridať šablónu
+               </button>
+               <button 
+                 onClick={handleExportTemplates}
+                 className="flex items-center gap-2 px-4 py-2 bg-white border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors font-medium text-sm"
+               >
+                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                 Exportovať
+               </button>
+               <button 
+                 onClick={handleImportTemplates}
+                 className="flex items-center gap-2 px-4 py-2 bg-white border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors font-medium text-sm"
+               >
+                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                 Importovať
+               </button>
+             </div>
            </div>
            
            {/* All Templates in Single Column */}
@@ -867,7 +970,25 @@ const App: React.FC = () => {
           onToggleAdmin={handleToggleAdmin}
         />
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-           <h2 className="text-2xl font-bold text-slate-900 mb-6">Správa Objednávok</h2>
+           <div className="flex justify-between items-center mb-6">
+             <h2 className="text-2xl font-bold text-slate-900">Správa Objednávok</h2>
+             <div className="flex gap-2">
+               <button 
+                 onClick={handleExportOrders}
+                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm"
+               >
+                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                 Exportovať
+               </button>
+               <button 
+                 onClick={handleImportOrders}
+                 className="flex items-center gap-2 px-4 py-2 bg-white border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors font-medium text-sm"
+               >
+                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                 Importovať
+               </button>
+             </div>
+           </div>
            
            {orders.length === 0 ? (
              <div className="text-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
