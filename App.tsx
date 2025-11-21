@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Header } from './components/Header';
 import { PhoneEditor } from './components/PhoneEditor';
 import { PhoneModel, DesignState, ViewMode, OrderSubmission } from './types';
+import { syncTemplates, syncOrders, syncAllOrders } from './services/firebaseService';
 
 const INITIAL_DESIGN: DesignState = {
   scale: 1,
@@ -55,26 +56,121 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const templateInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
+  const [, setIsSyncing] = useState(false);
 
-  // --- PERSISTENCE EFFECTS ---
+  // --- FIREBASE SYNC: Load data on mount ---
   useEffect(() => {
+    const loadFromFirebase = async () => {
+      setIsSyncing(true);
+      try {
+        // Load templates from Firebase
+        const firebaseTemplates = await syncTemplates.load();
+        if (firebaseTemplates && firebaseTemplates.length > 0) {
+          setAvailableModels(firebaseTemplates);
+          if (firebaseTemplates[0]) {
+            setSelectedModel(firebaseTemplates[0]);
+          }
+          // Also save to localStorage as backup
+          localStorage.setItem(STORAGE_KEYS.MODELS, JSON.stringify(firebaseTemplates));
+        } else {
+          // Fallback to localStorage if Firebase is empty
+          const localTemplates = localStorage.getItem(STORAGE_KEYS.MODELS);
+          if (localTemplates) {
+            const parsed = JSON.parse(localTemplates);
+            if (parsed.length > 0) {
+              // Sync local templates to Firebase
+              await syncTemplates.save(parsed);
+            }
+          }
+        }
+
+        // Load orders from Firebase
+        const firebaseOrders = await syncOrders.load();
+        if (firebaseOrders && firebaseOrders.length > 0) {
+          setOrders(firebaseOrders);
+          // Also save to localStorage as backup
+          localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(firebaseOrders));
+        } else {
+          // Fallback to localStorage if Firebase is empty
+          const localOrders = localStorage.getItem(STORAGE_KEYS.ORDERS);
+          if (localOrders) {
+            const parsed = JSON.parse(localOrders);
+            if (parsed.length > 0) {
+              // Sync local orders to Firebase
+              await syncAllOrders(parsed);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading from Firebase:', error);
+        // Fallback to localStorage
+        const localTemplates = localStorage.getItem(STORAGE_KEYS.MODELS);
+        const localOrders = localStorage.getItem(STORAGE_KEYS.ORDERS);
+        if (localTemplates) {
+          setAvailableModels(JSON.parse(localTemplates));
+        }
+        if (localOrders) {
+          setOrders(JSON.parse(localOrders));
+        }
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+
+    loadFromFirebase();
+
+    // Set up real-time subscriptions
+    const unsubscribeTemplates = syncTemplates.subscribe((templates) => {
+      if (templates && templates.length > 0) {
+        setAvailableModels(templates);
+        localStorage.setItem(STORAGE_KEYS.MODELS, JSON.stringify(templates));
+      }
+    });
+
+    const unsubscribeOrders = syncOrders.subscribe((firebaseOrders) => {
+      if (firebaseOrders && firebaseOrders.length >= 0) {
+        setOrders(firebaseOrders);
+        localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(firebaseOrders));
+      }
+    });
+
+    return () => {
+      if (unsubscribeTemplates) unsubscribeTemplates();
+      if (unsubscribeOrders) unsubscribeOrders();
+    };
+  }, []);
+
+  // --- PERSISTENCE EFFECTS: Save to both Firebase and localStorage ---
+  useEffect(() => {
+    // Save to localStorage immediately
     try {
       localStorage.setItem(STORAGE_KEYS.MODELS, JSON.stringify(availableModels));
     } catch (error) {
-      console.error("Failed to save models:", error);
+      console.error("Failed to save models to localStorage:", error);
     }
+
+    // Save to Firebase (async, don't block)
+    syncTemplates.save(availableModels).catch(error => {
+      console.error("Failed to save models to Firebase:", error);
+    });
   }, [availableModels]);
 
   useEffect(() => {
+    // Save to localStorage immediately
     try {
       localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
     } catch (error) {
-      console.error("Failed to save orders:", error);
+      console.error("Failed to save orders to localStorage:", error);
       const e = error as DOMException;
       if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
         alert("UPOZORNENIE: Lokálne úložisko je plné. Vaše posledné zmeny alebo nové objednávky sa neuložili trvalo. Pre uvoľnenie miesta vymažte staré objednávky v sekcii Admin.");
       }
     }
+
+    // Save to Firebase (async, don't block)
+    syncAllOrders(orders).catch(error => {
+      console.error("Failed to save orders to Firebase:", error);
+    });
   }, [orders]);
 
   // Ensure selectedModel is valid if availableModels changes (e.g., deletion)
@@ -137,9 +233,15 @@ const App: React.FC = () => {
     }
   };
 
-  const handleDeleteOrder = (orderId: string) => {
+  const handleDeleteOrder = async (orderId: string) => {
     if (window.confirm("Naozaj chcete vymazať túto objednávku?")) {
       setOrders(prev => prev.filter(o => o.id !== orderId));
+      // Also delete from Firebase
+      try {
+        await syncOrders.delete(orderId);
+      } catch (error) {
+        console.error("Failed to delete order from Firebase:", error);
+      }
     }
   };
 
@@ -171,6 +273,10 @@ const App: React.FC = () => {
           if (Array.isArray(imported)) {
             if (window.confirm(`Naozaj chcete importovať ${imported.length} objednávok? Toto prepíše všetky existujúce objednávky.`)) {
               setOrders(imported);
+              // Also sync to Firebase
+              syncAllOrders(imported).catch(error => {
+                console.error("Failed to sync imported orders to Firebase:", error);
+              });
               alert(`Úspešne importované ${imported.length} objednávok.`);
             }
           } else {
@@ -216,6 +322,10 @@ const App: React.FC = () => {
               if (imported.length > 0) {
                 setSelectedModel(imported[0]);
               }
+              // Also sync to Firebase
+              syncTemplates.save(imported).catch(error => {
+                console.error("Failed to sync imported templates to Firebase:", error);
+              });
               alert(`Úspešne importované ${imported.length} šablón.`);
             }
           } else {
@@ -707,6 +817,15 @@ const App: React.FC = () => {
       await new Promise(resolve => setTimeout(resolve, 1500));
       
       setOrders(prev => [order, ...prev]);
+      
+      // Save to Firebase immediately
+      try {
+        await syncOrders.save(order);
+      } catch (error) {
+        console.error("Failed to save order to Firebase:", error);
+        // Continue anyway - it's saved to localStorage
+      }
+      
       setViewMode(ViewMode.SUCCESS);
     } catch (error) {
       console.error("Upload failed", error);
