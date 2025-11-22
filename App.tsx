@@ -57,6 +57,7 @@ const App: React.FC = () => {
   const templateInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
   const [, setIsSyncing] = useState(false);
+  const isUpdatingFromFirebase = useRef(false);
 
   // --- FIREBASE SYNC: Load data on mount ---
   useEffect(() => {
@@ -129,8 +130,13 @@ const App: React.FC = () => {
 
     const unsubscribeOrders = syncOrders.subscribe((firebaseOrders) => {
       if (firebaseOrders && firebaseOrders.length >= 0) {
+        isUpdatingFromFirebase.current = true;
         setOrders(firebaseOrders);
         localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(firebaseOrders));
+        // Reset flag after a short delay to allow state update
+        setTimeout(() => {
+          isUpdatingFromFirebase.current = false;
+        }, 100);
       }
     });
 
@@ -156,6 +162,11 @@ const App: React.FC = () => {
   }, [availableModels]);
 
   useEffect(() => {
+    // Skip if this update came from Firebase (to prevent circular sync)
+    if (isUpdatingFromFirebase.current) {
+      return;
+    }
+
     // Save to localStorage immediately
     try {
       localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
@@ -167,10 +178,15 @@ const App: React.FC = () => {
       }
     }
 
-    // Save to Firebase (async, don't block)
-    syncAllOrders(orders).catch(error => {
-      console.error("Failed to save orders to Firebase:", error);
-    });
+    // Save individual orders to Firebase (not bulk sync to avoid loops)
+    // Only sync if we have orders and Firebase is available
+    if (orders.length > 0) {
+      orders.forEach(order => {
+        syncOrders.save(order).catch(error => {
+          console.error(`Failed to save order ${order.id} to Firebase:`, error);
+        });
+      });
+    }
   }, [orders]);
 
   // Ensure selectedModel is valid if availableModels changes (e.g., deletion)
