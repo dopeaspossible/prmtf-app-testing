@@ -30,9 +30,52 @@ const COLLECTIONS = {
   ORDERS: 'orders'
 };
 
-// Check if Firebase is available
+// Check if Firebase is disabled due to quota
+const FIREBASE_DISABLED_KEY = 'casecraft_firebase_disabled';
+
+const isFirebaseDisabled = (): boolean => {
+  try {
+    return localStorage.getItem(FIREBASE_DISABLED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+};
+
+const setFirebaseDisabled = (disabled: boolean): void => {
+  try {
+    if (disabled) {
+      localStorage.setItem(FIREBASE_DISABLED_KEY, 'true');
+    } else {
+      localStorage.removeItem(FIREBASE_DISABLED_KEY);
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+};
+
+// Check if Firebase is available and not disabled
 const isFirebaseAvailable = () => {
-  return db !== null;
+  return db !== null && !isFirebaseDisabled();
+};
+
+// Check if error is a quota/resource exhaustion error
+const isQuotaError = (error: any): boolean => {
+  if (!error) return false;
+  
+  const errorCode = error.code || error.message || '';
+  const errorString = String(errorCode).toLowerCase();
+  
+  // Firebase quota error codes
+  return (
+    errorString.includes('quota') ||
+    errorString.includes('resource-exhausted') ||
+    errorString.includes('resource_exhausted') ||
+    errorString === '8' || // RESOURCE_EXHAUSTED
+    errorString.includes('429') || // HTTP 429 Too Many Requests
+    errorString.includes('too many requests') ||
+    errorString.includes('billing') ||
+    errorString.includes('quota-exceeded')
+  );
 };
 
 // Templates sync
@@ -52,6 +95,14 @@ export const syncTemplates = {
       }, { merge: true });
     } catch (error) {
       console.error('Error saving templates to Firebase:', error);
+      if (isQuotaError(error)) {
+        console.warn('Firebase quota exceeded, disabling Firebase and switching to localStorage');
+        setFirebaseDisabled(true);
+        // Dispatch event to notify app
+        window.dispatchEvent(new CustomEvent('firebase-quota-exceeded', { 
+          detail: { type: 'templates' } 
+        }));
+      }
       throw error;
     }
   },
@@ -92,6 +143,13 @@ export const syncTemplates = {
         }
       }, (error) => {
         console.error('Error in templates subscription:', error);
+        if (isQuotaError(error)) {
+          console.warn('Firebase quota exceeded in subscription, disabling Firebase');
+          setFirebaseDisabled(true);
+          window.dispatchEvent(new CustomEvent('firebase-quota-exceeded', { 
+            detail: { type: 'templates' } 
+          }));
+        }
       });
 
       return unsubscribe;
@@ -119,6 +177,14 @@ export const syncOrders = {
       });
     } catch (error) {
       console.error('Error saving order to Firebase:', error);
+      if (isQuotaError(error)) {
+        console.warn('Firebase quota exceeded, disabling Firebase and switching to localStorage');
+        setFirebaseDisabled(true);
+        // Dispatch event to notify app
+        window.dispatchEvent(new CustomEvent('firebase-quota-exceeded', { 
+          detail: { type: 'orders' } 
+        }));
+      }
       throw error;
     }
   },
@@ -183,6 +249,13 @@ export const syncOrders = {
         callback(orders);
       }, (error) => {
         console.error('Error in orders subscription:', error);
+        if (isQuotaError(error)) {
+          console.warn('Firebase quota exceeded in subscription, disabling Firebase');
+          setFirebaseDisabled(true);
+          window.dispatchEvent(new CustomEvent('firebase-quota-exceeded', { 
+            detail: { type: 'orders' } 
+          }));
+        }
       });
 
       return unsubscribe;
@@ -211,7 +284,30 @@ export const syncAllOrders = async (orders: OrderSubmission[]): Promise<void> =>
     await Promise.all(savePromises);
   } catch (error) {
     console.error('Error syncing all orders:', error);
+    if (isQuotaError(error)) {
+      console.warn('Firebase quota exceeded, disabling Firebase');
+      setFirebaseDisabled(true);
+      window.dispatchEvent(new CustomEvent('firebase-quota-exceeded', { 
+        detail: { type: 'orders' } 
+      }));
+    }
     throw error;
   }
 };
+
+// Export function to manually re-enable Firebase (for testing or after quota resets)
+export const reEnableFirebase = (): void => {
+  setFirebaseDisabled(false);
+  window.dispatchEvent(new CustomEvent('firebase-re-enabled'));
+};
+
+// Export function to check if Firebase is disabled
+export const checkFirebaseStatus = (): { available: boolean; disabled: boolean } => {
+  return {
+    available: db !== null,
+    disabled: isFirebaseDisabled()
+  };
+};
+
+
 
