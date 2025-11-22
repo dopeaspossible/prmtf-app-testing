@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ViewMode } from '../types';
+import { checkFirebaseStatus } from '../services/firebaseService';
 
 interface HeaderProps {
   onTemplateUpload: () => void;
@@ -16,6 +17,43 @@ export const Header: React.FC<HeaderProps> = ({
   isAdmin,
   onToggleAdmin
 }) => {
+  const [dbStatus, setDbStatus] = useState<{ available: boolean; disabled: boolean }>({ available: false, disabled: false });
+
+  useEffect(() => {
+    const updateStatus = () => {
+      setDbStatus(checkFirebaseStatus());
+    };
+
+    // Check status on mount
+    updateStatus();
+
+    // Listen for changes
+    window.addEventListener('firebase-quota-exceeded', updateStatus);
+    window.addEventListener('firebase-re-enabled', updateStatus);
+
+    return () => {
+      window.removeEventListener('firebase-quota-exceeded', updateStatus);
+      window.removeEventListener('firebase-re-enabled', updateStatus);
+    };
+  }, []);
+
+  const getDatabaseText = () => {
+    if (!dbStatus.available) {
+      return 'DB: LocalStorage';
+    }
+    if (dbStatus.disabled) {
+      return 'DB: LocalStorage (Firebase disabled)';
+    }
+    return 'DB: Firebase';
+  };
+
+  const getDatabaseColor = () => {
+    if (!dbStatus.available || dbStatus.disabled) {
+      return 'text-slate-500';
+    }
+    return 'text-green-600';
+  };
+
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -81,9 +119,14 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Admin Status Message */}
             {isAdmin && (
-              <span className="text-sm text-slate-600 font-medium mr-2">
-                Logged as admin
-              </span>
+              <div className="flex flex-col items-end mr-2">
+                <span className="text-sm text-slate-600 font-medium">
+                  Logged as admin
+                </span>
+                <span className={`text-xs ${getDatabaseColor()} font-mono`}>
+                  {getDatabaseText()}
+                </span>
+              </div>
             )}
 
             {/* Admin Login Toggle */}
