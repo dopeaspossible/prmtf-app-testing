@@ -1205,7 +1205,7 @@ const App: React.FC = () => {
                 </button>
              </div>
            ) : (
-             <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+             <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
                {orders.map(order => (
                  <div key={order.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
                     <div className="h-64 bg-slate-100 p-4 flex items-center justify-center relative overflow-hidden group">
