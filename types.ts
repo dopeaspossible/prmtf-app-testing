@@ -20,6 +20,18 @@ export interface PhoneModel {
   safeZonePath: string; // Dashed line for print safety
 }
 
+export interface TextElement {
+  id: string;
+  text: string;
+  fontFamily: string;
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  fontSize: number; // Base font size
+  color: string; // Text color (hex format)
+}
+
 export interface DesignState {
   scale: number;
   x: number;
@@ -28,6 +40,7 @@ export interface DesignState {
   imageSrc: string | null;
   imgWidth?: number; // Natural width of the uploaded image
   imgHeight?: number; // Natural height of the uploaded image
+  textElements?: TextElement[]; // Array of text elements
 }
 
 export interface OrderSubmission {
