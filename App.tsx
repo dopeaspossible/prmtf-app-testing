@@ -58,6 +58,7 @@ const App: React.FC = () => {
   const passwordInputRef = useRef<HTMLInputElement>(null);
   const [, setIsSyncing] = useState(false);
   const isUpdatingFromFirebase = useRef(false);
+  const isUpdatingTemplatesFromFirebase = useRef(false);
 
   // --- FIREBASE SYNC: Load data on mount ---
   useEffect(() => {
@@ -122,9 +123,14 @@ const App: React.FC = () => {
 
     // Set up real-time subscriptions
     const unsubscribeTemplates = syncTemplates.subscribe((templates) => {
-      if (templates && templates.length > 0) {
+      if (templates && templates.length >= 0) {
+        isUpdatingTemplatesFromFirebase.current = true;
         setAvailableModels(templates);
         localStorage.setItem(STORAGE_KEYS.MODELS, JSON.stringify(templates));
+        // Reset flag after a short delay to allow state update
+        setTimeout(() => {
+          isUpdatingTemplatesFromFirebase.current = false;
+        }, 100);
       }
     });
 
@@ -148,6 +154,11 @@ const App: React.FC = () => {
 
   // --- PERSISTENCE EFFECTS: Save to both Firebase and localStorage ---
   useEffect(() => {
+    // Skip if this update came from Firebase (to prevent circular sync)
+    if (isUpdatingTemplatesFromFirebase.current) {
+      return;
+    }
+
     // Save to localStorage immediately
     try {
       localStorage.setItem(STORAGE_KEYS.MODELS, JSON.stringify(availableModels));
