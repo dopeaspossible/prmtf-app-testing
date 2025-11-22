@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { PhoneModel, DesignState, TextElement } from '../types';
+import { PhoneModel, DesignState } from '../types';
 
 interface PhoneEditorProps {
   model: PhoneModel;

@@ -22,16 +22,13 @@ const ColorSpectrumBar: React.FC<{ selectedColor: string; onColorChange: (color:
     const g = parseInt(hex.substring(2, 4), 16) / 255;
     const b = parseInt(hex.substring(4, 6), 16) / 255;
 
-    // Convert RGB to HSL
+    // Convert RGB to HSL (we only need hue for color spectrum)
     const max = Math.max(r, g, b);
     const min = Math.min(r, g, b);
     let h = 0;
-    let s = 0;
-    const l = (max + min) / 2;
 
     if (max !== min) {
       const d = max - min;
-      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
       
       switch (max) {
         case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
@@ -56,9 +53,8 @@ const ColorSpectrumBar: React.FC<{ selectedColor: string; onColorChange: (color:
     const l = lightness;
 
     let r, g, b;
-    if (s === 0) {
-      r = g = b = l;
-    } else {
+    // Since saturation is always 1 in this function, we skip the s === 0 check
+    {
       const hue2rgb = (p: number, q: number, t: number) => {
         if (t < 0) t += 1;
         if (t > 1) t -= 1;
@@ -102,29 +98,25 @@ const ColorSpectrumBar: React.FC<{ selectedColor: string; onColorChange: (color:
       const saturation = 1;
       const lightness = 0.5;
       
-      // HSL to RGB
+      // HSL to RGB (saturation is always 1, so we skip the s === 0 check)
       const h = hue / 360;
       const s = saturation;
       const l = lightness;
 
       let r, g, b;
-      if (s === 0) {
-        r = g = b = l;
-      } else {
-        const hue2rgb = (p: number, q: number, t: number) => {
-          if (t < 0) t += 1;
-          if (t > 1) t -= 1;
-          if (t < 1/6) return p + (q - p) * 6 * t;
-          if (t < 1/2) return q;
-          if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-          return p;
-        };
-        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-        const p = 2 * l - q;
-        r = hue2rgb(p, q, h + 1/3);
-        g = hue2rgb(p, q, h);
-        b = hue2rgb(p, q, h - 1/3);
-      }
+      const hue2rgb = (p: number, q: number, t: number) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1/6) return p + (q - p) * 6 * t;
+        if (t < 1/2) return q;
+        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        return p;
+      };
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1/3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1/3);
 
       const toHex = (n: number) => {
         const hex = Math.round(n * 255).toString(16);
@@ -2112,7 +2104,6 @@ const App: React.FC = () => {
                 <button
                   onClick={() => {
                     setSelectedTextId(null);
-                    if (onTextSelect) onTextSelect(null);
                   }}
                   className="ios-button px-4 py-2.5 xl:px-5 xl:py-3 bg-white hover:bg-[#F2F2F7] text-[#000000] border border-[#C7C7CC] rounded-2xl text-[11px] xl:text-xs font-semibold transition-colors ios-card"
                 >
