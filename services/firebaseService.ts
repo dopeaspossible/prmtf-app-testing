@@ -139,7 +139,11 @@ export const syncTemplates = {
       const unsubscribe = onSnapshot(templatesDoc, (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
-          callback(data.templates || []);
+          // Only call callback if templates exists and is a valid array
+          // Don't default to empty array to prevent overwriting local data
+          if (data && Array.isArray(data.templates)) {
+            callback(data.templates);
+          }
         }
       }, (error) => {
         console.error('Error in templates subscription:', error);

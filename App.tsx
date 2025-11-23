@@ -376,7 +376,10 @@ const App: React.FC = () => {
 
     // Set up real-time subscriptions
     const unsubscribeTemplates = syncTemplates.subscribe((templates) => {
-      if (templates && templates.length >= 0) {
+      // Only update from Firebase if we have templates (length > 0)
+      // This prevents empty arrays from Firebase from overwriting local data
+      // If someone intentionally deletes all templates, they can do it locally first
+      if (templates && Array.isArray(templates) && templates.length > 0) {
         isUpdatingTemplatesFromFirebase.current = true;
         setAvailableModels(templates);
         localStorage.setItem(STORAGE_KEYS.MODELS, JSON.stringify(templates));

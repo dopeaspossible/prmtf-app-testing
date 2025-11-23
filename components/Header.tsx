@@ -70,7 +70,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             <div>
               <h1 className="text-lg font-semibold text-[#000000] tracking-tight">CaseCraft</h1>
-              <p className="text-xs text-[#8E8E93] -mt-0.5">SK</p>
+              <p className="text-xs text-[#8E8E93] -mt-0.5">v1.0 - made by Primitif</p>
             </div>
           </div>
           
