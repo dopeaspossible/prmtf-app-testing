@@ -204,8 +204,14 @@ export const PhoneEditor: React.FC<PhoneEditorProps> = ({
   const handleTouchStart = (e: React.TouchEvent) => {
      if (!design.imageSrc) return;
      
+     // Don't handle image pan/zoom if text is being dragged
+     if (draggedTextId) {
+       return;
+     }
+     
      // Pinch Zoom Start
      if (e.touches.length === 2) {
+        e.preventDefault(); // Prevent default browser zoom
         setIsDragging(false); 
         dragStartRef.current = null;
         
@@ -229,6 +235,11 @@ export const PhoneEditor: React.FC<PhoneEditorProps> = ({
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
+    // Don't handle image pan/zoom if text is being dragged
+    if (draggedTextId) {
+      return;
+    }
+
     // Pinch Zoom Move
     if (e.touches.length === 2 && startDistance !== null) {
         e.preventDefault(); // Prevent default browser zoom
@@ -241,6 +252,7 @@ export const PhoneEditor: React.FC<PhoneEditorProps> = ({
 
     // Pan Move
     if (isDragging && e.touches.length === 1 && dragStartRef.current) {
+        e.preventDefault(); // Prevent page scroll
         const touch = e.touches[0];
         const dx = touch.clientX - dragStartRef.current.x;
         const dy = touch.clientY - dragStartRef.current.y;
@@ -285,6 +297,33 @@ export const PhoneEditor: React.FC<PhoneEditorProps> = ({
     };
   };
 
+  // --- TEXT TOUCH DRAG LOGIC (MOBILE) ---
+  const handleTextTouchStart = (e: React.TouchEvent, textId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    // Prevent image drag from starting
+    setIsDragging(false);
+    dragStartRef.current = null;
+    setStartDistance(null);
+    
+    const textEl = design.textElements?.find(t => t.id === textId);
+    if (!textEl) return;
+    
+    if (e.touches.length === 1) {
+      setDraggedTextId(textId);
+      setSelectedTextId(textId);
+      if (onTextSelect) onTextSelect(textId);
+      const touch = e.touches[0];
+      textDragStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        initialX: textEl.x,
+        initialY: textEl.y
+      };
+    }
+  };
+
   useEffect(() => {
     const handleTextMouseMove = (e: MouseEvent) => {
       if (!draggedTextId || !textDragStartRef.current) return;
@@ -317,14 +356,52 @@ export const PhoneEditor: React.FC<PhoneEditorProps> = ({
       textDragStartRef.current = null;
     };
 
+    const handleTextTouchMove = (e: TouchEvent) => {
+      if (!draggedTextId || !textDragStartRef.current || e.touches.length !== 1) return;
+      
+      e.preventDefault(); // Prevent page scroll
+      
+      const touch = e.touches[0];
+      const dx = touch.clientX - textDragStartRef.current.x;
+      const dy = touch.clientY - textDragStartRef.current.y;
+      
+      const scaledDx = dx / editorScale;
+      const scaledDy = dy / editorScale;
+      
+      const updatedTextElements = design.textElements?.map(textEl => {
+        if (textEl.id === draggedTextId) {
+          return {
+            ...textEl,
+            x: textDragStartRef.current!.initialX + scaledDx,
+            y: textDragStartRef.current!.initialY + scaledDy
+          };
+        }
+        return textEl;
+      });
+      
+      onDesignChange({
+        ...design,
+        textElements: updatedTextElements
+      });
+    };
+
+    const handleTextTouchEnd = () => {
+      setDraggedTextId(null);
+      textDragStartRef.current = null;
+    };
+
     if (draggedTextId) {
       window.addEventListener('mousemove', handleTextMouseMove);
       window.addEventListener('mouseup', handleTextMouseUp);
+      window.addEventListener('touchmove', handleTextTouchMove, { passive: false });
+      window.addEventListener('touchend', handleTextTouchEnd);
     }
 
     return () => {
       window.removeEventListener('mousemove', handleTextMouseMove);
       window.removeEventListener('mouseup', handleTextMouseUp);
+      window.removeEventListener('touchmove', handleTextTouchMove);
+      window.removeEventListener('touchend', handleTextTouchEnd);
     };
   }, [draggedTextId, design, onDesignChange, editorScale]);
 
@@ -357,10 +434,11 @@ export const PhoneEditor: React.FC<PhoneEditorProps> = ({
   const imgH = design.imgHeight || 500;
 
   return (
-    <div 
-      ref={containerRef}
-      className="relative w-full h-full flex items-center justify-center bg-[#E5E5EA]/50 overflow-hidden select-none"
-      onClick={(e) => {
+      <div 
+        ref={containerRef}
+        className="relative w-full h-full flex items-center justify-center bg-[#E5E5EA]/50 overflow-hidden select-none"
+        style={{ touchAction: 'none' }}
+        onClick={(e) => {
         // Don't deselect if we're currently rotating or just finished rotating
         if (isRotating || justFinishedRotatingRef.current) return;
         
@@ -433,6 +511,7 @@ export const PhoneEditor: React.FC<PhoneEditorProps> = ({
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
+            style={{ touchAction: 'none' }}
           >
              {/* Invisible Rect to catch events even if image is small/missing */}
              <rect 
@@ -504,8 +583,9 @@ export const PhoneEditor: React.FC<PhoneEditorProps> = ({
                   transform={`translate(${textX}, ${textY}) rotate(${textEl.rotation})`}
                   className="cursor-move"
                   onMouseDown={(e) => handleTextMouseDown(e, textEl.id)}
+                  onTouchStart={(e) => handleTextTouchStart(e, textEl.id)}
                   onWheel={(e) => handleTextWheel(e, textEl.id)}
-                  style={{ pointerEvents: 'all' }}
+                  style={{ pointerEvents: 'all', touchAction: 'none' }}
                 >
                 <text
                   x="0"

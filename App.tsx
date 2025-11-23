@@ -180,6 +180,23 @@ const ColorSpectrumBar: React.FC<{ selectedColor: string; onColorChange: (color:
     setIsDragging(false);
   };
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault(); // Prevent page scroll
+    setIsDragging(true);
+    updateColorFromTouch(e);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent | TouchEvent) => {
+    if (isDragging) {
+      e.preventDefault(); // Prevent page scroll
+      updateColorFromTouch(e);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+  };
+
   const updateColor = (e: React.MouseEvent | MouseEvent) => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -196,16 +213,39 @@ const ColorSpectrumBar: React.FC<{ selectedColor: string; onColorChange: (color:
     onColorChange(hex);
   };
 
+  const updateColorFromTouch = (e: React.TouchEvent | TouchEvent) => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container || !e.touches || e.touches.length === 0) return;
+
+    const rect = container.getBoundingClientRect();
+    const touch = e.touches[0];
+    const x = touch.clientX - rect.left;
+    const width = rect.width;
+    
+    const position = Math.max(0, Math.min(100, (x / width) * 100));
+    setSliderPosition(position);
+    
+    const hex = positionToHex(position);
+    onColorChange(hex);
+  };
+
   useEffect(() => {
     if (isDragging) {
       const handleMove = (e: MouseEvent) => handleMouseMove(e);
       const handleUp = () => handleMouseUp();
+      const handleTouchMoveEvent = (e: TouchEvent) => handleTouchMove(e);
+      const handleTouchEndEvent = () => handleTouchEnd();
       
       window.addEventListener('mousemove', handleMove);
       window.addEventListener('mouseup', handleUp);
+      window.addEventListener('touchmove', handleTouchMoveEvent, { passive: false });
+      window.addEventListener('touchend', handleTouchEndEvent);
       return () => {
         window.removeEventListener('mousemove', handleMove);
         window.removeEventListener('mouseup', handleUp);
+        window.removeEventListener('touchmove', handleTouchMoveEvent);
+        window.removeEventListener('touchend', handleTouchEndEvent);
       };
     }
   }, [isDragging]);
@@ -215,6 +255,7 @@ const ColorSpectrumBar: React.FC<{ selectedColor: string; onColorChange: (color:
       ref={containerRef}
       className="relative w-full h-8 xl:h-10 rounded-2xl overflow-hidden border-2 border-[#C7C7CC] cursor-pointer ios-card"
       onMouseDown={handleMouseDown}
+      onTouchStart={handleTouchStart}
       style={{ touchAction: 'none' }}
     >
       <canvas
@@ -1960,7 +2001,7 @@ const App: React.FC = () => {
         </div>
 
         {/* RIGHT PANEL: Editor Area */}
-        <div className="flex-grow bg-[#E5E5EA] relative overflow-hidden flex flex-col h-full">
+        <div className="flex-grow bg-[#E5E5EA] relative overflow-hidden flex flex-col h-full" style={{ touchAction: 'none' }}>
           <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ 
             backgroundImage: 'radial-gradient(#8E8E93 1px, transparent 1px)', 
             backgroundSize: '24px 24px' 

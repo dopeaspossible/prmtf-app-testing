@@ -20,6 +20,11 @@
         background: #f2f2f7; /* iOS system background */
       }
       
+      /* Prevent page zoom on touch devices */
+      html, body {
+        touch-action: pan-x pan-y; /* Allow scrolling but prevent pinch zoom */
+      }
+      
       /* iOS-style scrollbar */
       ::-webkit-scrollbar { width: 0px; height: 0px; background: transparent; }
       
