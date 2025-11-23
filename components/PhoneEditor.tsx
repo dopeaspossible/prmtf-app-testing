@@ -32,6 +32,8 @@ export const PhoneEditor: React.FC<PhoneEditorProps> = ({
   const [internalSelectedTextId, setInternalSelectedTextId] = useState<string | null>(null);
   const [isRotating, setIsRotating] = useState(false);
   const justFinishedRotatingRef = useRef(false);
+  const textTouchStartRef = useRef<{ x: number; y: number; textId: string } | null>(null);
+  const [isTextTouched, setIsTextTouched] = useState(false);
   
   // Use external selectedTextId if provided, otherwise use internal state
   const selectedTextId = externalSelectedTextId !== undefined ? externalSelectedTextId : internalSelectedTextId;
@@ -221,11 +223,12 @@ export const PhoneEditor: React.FC<PhoneEditorProps> = ({
         return;
      }
 
-     // Pan Start
+     // Pan Start - prevent default to stop page scrolling
      if (e.touches.length === 1) {
-         setIsDragging(true);
-         const touch = e.touches[0];
-         dragStartRef.current = { 
+        e.preventDefault(); // Prevent page scroll
+        setIsDragging(true);
+        const touch = e.touches[0];
+        dragStartRef.current = { 
             x: touch.clientX, 
             y: touch.clientY, 
             initialDesignX: design.x, 
@@ -300,7 +303,8 @@ export const PhoneEditor: React.FC<PhoneEditorProps> = ({
   // --- TEXT TOUCH DRAG LOGIC (MOBILE) ---
   const handleTextTouchStart = (e: React.TouchEvent, textId: string) => {
     e.stopPropagation();
-    e.preventDefault();
+    // Don't prevent default immediately - allow tap to select first
+    // We'll prevent default only when dragging starts
     
     // Prevent image drag from starting
     setIsDragging(false);
@@ -311,10 +315,22 @@ export const PhoneEditor: React.FC<PhoneEditorProps> = ({
     if (!textEl) return;
     
     if (e.touches.length === 1) {
-      setDraggedTextId(textId);
+      const touch = e.touches[0];
+      // Store initial touch position for movement detection
+      textTouchStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        textId: textId
+      };
+      
+      // Mark that text is being touched
+      setIsTextTouched(true);
+      
+      // Select text immediately on touch
       setSelectedTextId(textId);
       if (onTextSelect) onTextSelect(textId);
-      const touch = e.touches[0];
+      
+      // Initialize drag ref but don't start dragging yet
       textDragStartRef.current = {
         x: touch.clientX,
         y: touch.clientY,
@@ -357,44 +373,68 @@ export const PhoneEditor: React.FC<PhoneEditorProps> = ({
     };
 
     const handleTextTouchMove = (e: TouchEvent) => {
-      if (!draggedTextId || !textDragStartRef.current || e.touches.length !== 1) return;
-      
-      e.preventDefault(); // Prevent page scroll
+      if (!textTouchStartRef.current || !textDragStartRef.current || e.touches.length !== 1) return;
       
       const touch = e.touches[0];
-      const dx = touch.clientX - textDragStartRef.current.x;
-      const dy = touch.clientY - textDragStartRef.current.y;
+      const textId = textTouchStartRef.current.textId;
       
-      const scaledDx = dx / editorScale;
-      const scaledDy = dy / editorScale;
+      // Calculate movement distance from initial touch
+      const moveX = touch.clientX - textTouchStartRef.current.x;
+      const moveY = touch.clientY - textTouchStartRef.current.y;
+      const moveDistance = Math.sqrt(moveX * moveX + moveY * moveY);
       
-      const updatedTextElements = design.textElements?.map(textEl => {
-        if (textEl.id === draggedTextId) {
-          return {
-            ...textEl,
-            x: textDragStartRef.current!.initialX + scaledDx,
-            y: textDragStartRef.current!.initialY + scaledDy
-          };
+      // Start dragging only if movement exceeds threshold (5px)
+      const DRAG_THRESHOLD = 5;
+      if (moveDistance > DRAG_THRESHOLD) {
+        e.preventDefault(); // Prevent page scroll only when dragging
+        e.stopPropagation();
+        
+        // Start dragging if not already started
+        if (!draggedTextId) {
+          setDraggedTextId(textId);
         }
-        return textEl;
-      });
-      
-      onDesignChange({
-        ...design,
-        textElements: updatedTextElements
-      });
+        
+        const dx = touch.clientX - textDragStartRef.current.x;
+        const dy = touch.clientY - textDragStartRef.current.y;
+        
+        const scaledDx = dx / editorScale;
+        const scaledDy = dy / editorScale;
+        
+        const updatedTextElements = design.textElements?.map(textEl => {
+          if (textEl.id === textId) {
+            return {
+              ...textEl,
+              x: textDragStartRef.current!.initialX + scaledDx,
+              y: textDragStartRef.current!.initialY + scaledDy
+            };
+          }
+          return textEl;
+        });
+        
+        onDesignChange({
+          ...design,
+          textElements: updatedTextElements
+        });
+      }
     };
 
     const handleTextTouchEnd = () => {
       setDraggedTextId(null);
       textDragStartRef.current = null;
+      textTouchStartRef.current = null;
+      setIsTextTouched(false);
     };
 
     if (draggedTextId) {
       window.addEventListener('mousemove', handleTextMouseMove);
       window.addEventListener('mouseup', handleTextMouseUp);
+    }
+    
+    // Always listen for touch events when text is touched (even if not dragging yet)
+    if (isTextTouched) {
       window.addEventListener('touchmove', handleTextTouchMove, { passive: false });
       window.addEventListener('touchend', handleTextTouchEnd);
+      window.addEventListener('touchcancel', handleTextTouchEnd);
     }
 
     return () => {
@@ -402,8 +442,9 @@ export const PhoneEditor: React.FC<PhoneEditorProps> = ({
       window.removeEventListener('mouseup', handleTextMouseUp);
       window.removeEventListener('touchmove', handleTextTouchMove);
       window.removeEventListener('touchend', handleTextTouchEnd);
+      window.removeEventListener('touchcancel', handleTextTouchEnd);
     };
-  }, [draggedTextId, design, onDesignChange, editorScale]);
+  }, [draggedTextId, design, onDesignChange, editorScale, isTextTouched]);
 
   const handleTextWheel = (e: React.WheelEvent, textId: string) => {
     e.stopPropagation();
